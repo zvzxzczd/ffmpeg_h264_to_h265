@@ -166,63 +166,72 @@ class Ffm_run:
             if self.bit_rate <= 900:
                 return "A"  # self.bit_rate = cache_bit
             if self.bit_rate > 900:
-                self.bit_rate = int(self.bit_rate * 0.6)
+                self.bit_rate = int(self.bit_rate * 0.3)
                 if self.bit_rate <= 700:
                     self.bit_rate = 700
                 return "B"
 
-        if 480 < low <= 720:  # 480P以上720P及以下
+        elif 480 < low <= 720:  # 480P以上720P及以下
             if self.bit_rate <= 1800:
                 return "A"  # self.bit_rate = cache_bit
             if self.bit_rate > 1800:
-                self.bit_rate = int(self.bit_rate * 0.6)
+                self.bit_rate = int(self.bit_rate * 0.4)
                 if self.bit_rate <= 1500:
                     self.bit_rate = 1500
                 return "B"
 
-        if 720 < low <= 960:  # 720P以上960P及以下
+        elif 720 < low <= 960:  # 720P以上960P及以下
             if self.bit_rate <= 2000:
                 return "A"  # self.bit_rate = cache_bit
             if self.bit_rate > 2000:
-                self.bit_rate = int(self.bit_rate * 0.6)
+                self.bit_rate = int(self.bit_rate * 0.4)
                 if self.bit_rate <= 1700:
                     self.bit_rate = 1700
                 return "B"
 
-        if 960 < low <= 1080:  # 960P以上1080P及以下
+        elif 960 < low <= 1080:  # 960P以上1080P及以下
             if self.bit_rate <= 3000:
                 return "A"  # self.bit_rate = cache_bit
             if self.bit_rate > 3000:
-                self.bit_rate = int(self.bit_rate * 0.6)
+                self.bit_rate = int(self.bit_rate * 0.5)
                 if self.bit_rate <= 2500:
                     self.bit_rate = 2500
                 return "B"
 
-        if 1080 < low <= 1440:  # 1080P以上1440P及以下
+        elif 1080 < low <= 1440:  # 1080P以上1440P及以下
             if self.bit_rate <= 4800:
                 return "A"  # self.bit_rate = cache_bit
             if self.bit_rate > 4800:
-                self.bit_rate = int(self.bit_rate * 0.6)
+                self.bit_rate = int(self.bit_rate * 0.5)
                 if self.bit_rate <= 4000:
                     self.bit_rate = 4000
                 return "B"
 
-        if 1440 < low <= 1600:  # 1440P以上1600P及以下
+        elif 1440 < low <= 1600:  # 1440P以上1600P及以下
             if self.bit_rate <= 6000:
                 return "A"  # self.bit_rate = cache_bit
             if self.bit_rate > 6000:
-                self.bit_rate = int(self.bit_rate * 0.6)
+                self.bit_rate = int(self.bit_rate * 0.5)
                 if self.bit_rate <= 5000:
                     self.bit_rate = 5000
                 return "B"
 
-        if 1600 < low <= 2160:  # 1600P以上2160P及以下
+        elif 1600 < low <= 2160:  # 1600P以上2160P及以下
             if self.bit_rate <= 8000:
                 return "A"  # self.bit_rate = cache_bit
             if self.bit_rate > 8000:
                 self.bit_rate = int(self.bit_rate * 0.6)
                 if self.bit_rate <= 6500:
                     self.bit_rate = 6500
+                return "B"
+
+        elif low > 2160:  # 2160P以上
+            if self.bit_rate <= 12000:
+                return "A"  # self.bit_rate = cache_bit
+            if self.bit_rate > 12000:
+                self.bit_rate = int(self.bit_rate * 0.6)
+                if self.bit_rate <= 10000:
+                    self.bit_rate = 10000
                 return "B"
         # print(self.bit_rate)
 
