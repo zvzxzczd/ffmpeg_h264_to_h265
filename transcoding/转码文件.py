@@ -105,7 +105,7 @@ class Ffm_run:
         :param read_directory 读取目录\n
         write_directory 写入目录\n
         coding_loss 缓存编码损失过大的文件夹\n
-        type_v 变更的文件类型\n
+        type_v 变更后的文件类型\n
         filter_data 筛选数据保存的位置\n
         transcoding_data 转码文件保存的位置\n
         json_w 测试用，用于设置是否开启写入json选项，默认写入，不写入则需设置为 False\n
@@ -517,7 +517,7 @@ def run_ff(x_value=None, write_folder=None, write_loss=None, y_dist=None, json_w
     :param x_value: 1：默认 ./视频 文件夹  2：默认 ./下载文件夹 ，可以传入自定义参数
     :param write_folder: 视频缓存文件夹
     :param write_loss: 码率损失过大的保存文件夹，转码后不会删除源文件
-    :param y_dist: x_value下已设置默认需转码的路径，可以自定义传入 y_dist=需要转码的路径
+    :param y_dist: x_value下已设置默认需转码的路径，可以自定义传入 y_dist=需要转码的路径，也可以不设置x_value,直接传入y_dist=需要转码的路径
     :param json_w: 默认True,  写入 JSON 数据， 传入False则不写入数据
     """
 
