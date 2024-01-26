@@ -86,7 +86,11 @@ def r_json(transcoding_data):
 
 def create_folder_and_path(file_path):
     """检查某个路径下的文件是否存在，如果文件不存在，创建文件夹"""
-    dir_path, file_name = os.path.split(file_path)
+    try:
+        re.search(r"(\.)(?!.*\.).{1,9}$", file_path).group()
+        dir_path, file_name = os.path.split(file_path)
+    except:
+        dir_path = file_path
     # 检查文件是否存在
     if not os.path.exists(file_path):
         # 如果文件不存在，创建文件夹
@@ -95,6 +99,41 @@ def create_folder_and_path(file_path):
         with open(file_path, 'w') as f:
             pass
         print(f"新建文件完成：{file_path}")
+
+
+def test_walk_os(all_dir, file_name):
+    """
+    通过读取传入的文件 inode 值，如果大于1，则输出同 inode 的所有文件，等于 1 只输出当前文件
+    包含传入链接，如果删除所有文件，需要注意
+    :param all_dir:  所有的文件路径
+    :param file_name: 要处理的文件路径
+    :return:
+    """
+    # 读取传入的文件 inode 值
+    inode_number = os.stat(file_name).st_ino
+    # 输出同 inode 值的所有文件的列表
+    file_list = []
+    # 遍历传入需要清除的硬链接文件根路径，并输出结果
+    # 如果大于1，则输出同 inode 的所有文件
+    if os.stat(file_name).st_nlink > 1:
+        # 遍历传入根路径
+        for path, _, files in os.walk(all_dir):
+            for file in files:
+                # 合成文件路径
+                file_path = os.path.join(path, file).replace('\\', '/')
+                # 如果是同一个 inode 值
+                if os.stat(file_path).st_ino == inode_number:
+                    # 添加路径到输出的列表中
+                    if file_path not in file_list:  # 当前路径不在列表中，避免重复
+                        file_list.append(file_path)
+    # 等于 1 只输出当前文件路径列表
+    if os.stat(file_name).st_nlink == 1:
+        file_list.append(file_name)
+    # 等于 0 空列表
+    elif os.stat(file_name).st_nlink == 0:
+        pass
+
+    return file_list
 
 
 class Ffm_run:
@@ -140,6 +179,7 @@ class Ffm_run:
         self.filter_data = kwargs["filter_data"]  # 筛选数据保存的位置
         self.transcoding_data = kwargs["transcoding_data"]  # 转码文件保存的位置
         self.json_w = kwargs["json_w"]  # 默认写入文件，测试环境设置False 则不写入
+        self.remove_file_list = None  # 要删除的文件及对应的所有硬链接路径列表，用于避免多次转码，文件重复出现，使用时请在调用处或使用完成后初始化
 
         self.video_encoding = ['vp8', 'avc', 'realvideo 4', 'jpeg', 'mpeg video', 'mpeg-4 visual']  # 限定编码类型
         self.video_bit = 10000000  # 码率控制线
@@ -162,7 +202,9 @@ class Ffm_run:
         self.bit_rate = 0  # 读取到的码率
         self.width = 0  # 视频宽
         self.height = 0  # 视频高
-        self.ff = None
+        self.ff = None  # 等待生成的转码命令
+
+        self.f_print = '-' * 150  # 分隔符 打印格式化
 
     def re_name_file(self):
         """重命名文件"""
@@ -349,6 +391,85 @@ class Ffm_run:
         print(self.ff.cmd)
         self.ff.run()  # 可以注释该行测试是否能够正确的分段时间
 
+    def n_link_flie(self):
+        """删除文件后，检测有没有硬链接，删除所有旧硬链接，并重新创建新的对应的硬链接。
+        如果文件存在，则重命名转码文件后移动，管理源文件的硬链接并重新创建新的硬链接"""
+        self.remove_file_list = None  # 初始化
+        if os.path.exists(self.path_file):  # 判断源文件是否存在,如果文件被删除，会出现同inode的文件未被删除完成，再次转码该inode文件，
+            # os.remove(self.path_file)  # 如果存在则删除源文件，已更新到读取所有硬链接后删除 此行已失效
+            # 读取当前硬链接的文件
+            self.remove_file_list = test_walk_os(self.read_directory, self.path_file)
+            # 遍历列表并逐个删除
+            n_remove = 0
+            print(f"\n删除当前转码 inode 号： {os.stat(self.path_file).st_ino} 共 "
+                  f"{os.stat(self.path_file).st_nlink} 个连接数所指向的文件路径：")
+            for one_file_name in self.remove_file_list:
+                os.remove(one_file_name)
+                n_remove += 1
+                print(f"已删除 第 {n_remove} 个文件路径 >>>>> {one_file_name}")
+            print('-' * 50)
+
+        # 移动文件后建立硬链接
+        cache_dir = os.path.dirname(self.path_file)  # 去掉文件名，单独返回目录路径
+        if not os.path.exists(cache_dir):  # 路径不存在，则递归创建 避免文件夹删除的情况
+            # 传入一个path路径，生成一个递归的文件夹；如果文件夹存在，就会报错,因此创建文件夹之前，需要使用os.path.exists(path)函数判断文件夹是否存在；
+            os.makedirs(cache_dir, exist_ok=True)  # makedirs 创建文件时如果路径不存在会创建这个路径
+        try:  # 20240125 更新str()
+            print(f"移动文件: {self.out_file} >>>>>> {cache_dir}")
+            shutil.move(str(self.out_file), str(cache_dir))  # 移动文件
+        except shutil.Error as err:  # 移动失败后处理
+            # 避免多次转码出现长串文件名问题 20240125 更新str()
+            self.out_file = re.sub(r"(_?转码文件名重复)+\.mp4$", '.mp4',
+                                   str(self.out_file), flags=re.I)
+            # 正则添加重复文件的名称
+            self.out_file = re.sub("\\.mp4$", '_转码文件名重复.mp4',
+                                   self.out_file, flags=re.I)
+            shutil.move(self.out_file, cache_dir)  # 移动文件
+            print(err)  # 打印错误信息
+            # 将 self.remove_file_list 列表内的变量也重命名
+            cache_list = []  # 初始化
+            for err_name in self.remove_file_list:
+                err_name = re.sub("\\.mp4$", '_转码文件名重复.mp4',
+                                  str(err_name), flags=re.I)
+                cache_list.append(err_name)
+            self.remove_file_list = copy.deepcopy(cache_list)  # 更新列表内容
+
+        # 当源文件删除后，没有读取到硬链接路径列表后，已经移动转码文件的情况的情况
+        if self.remove_file_list is not None:
+            # 拆分获得路径、文件名
+            ___path, ___name = os.path.split(self.out_file)
+            # 组装转码和移动完成后的路径+文件名
+            new_file_dir_ = os.path.join(cache_dir, ___name).replace("\\", "/")
+            if len(self.remove_file_list) > 1:
+                for file_nlink in self.remove_file_list:
+                    # 去除文件后缀 合成转码移动后的文件路径
+                    cache__path, __ = os.path.splitext(file_nlink)
+                    file_dir_all = f"{cache__path}.mp4"  # 要创建硬链接的 路径+文件名+后缀
+                    if not os.path.exists(file_dir_all):  # 如果文件不存在
+                        try:
+                            print(f"创建硬链接: {new_file_dir_} >> {file_dir_all}")
+                            os.link(new_file_dir_, file_dir_all)  # 创建硬链接
+                            # print("创建硬链接完成。")
+                        except:
+                            print(f'\n创建硬链接失败，请检查文件：{new_file_dir_} >> {file_dir_all}\n')
+                    else:  # 如果文件存在
+                        # 如果文件存在，且不是转码完成移动后的文件或者同一个 inode 号的文件，重命名后闯将硬链接
+                        if os.stat(file_dir_all).st_ino != os.stat(new_file_dir_).st_ino:
+                            # 重命名文件，且避免多次转码出现长串文件名问题
+                            file_dir_all = re.sub(r"(_?硬链接文件名重复)+\.mp4$", '.mp4',
+                                                  str(file_dir_all), flags=re.I)
+                            file_dir_all = re.sub("\\.mp4$", '_硬链接文件名重复.mp4',
+                                                  file_dir_all, flags=re.I)
+                            if os.path.exists(file_dir_all):  # 删除重命名文件后，仍然存在，则删除目标文件夹内的冲突文件
+                                os.remove(file_dir_all)
+                            try:
+                                print(f"文件名称重复，重命名后创建硬链接: {new_file_dir_} >> {file_dir_all}")
+                                os.link(new_file_dir_, file_dir_all)  # 创建硬链接
+                                # print("创建硬链接完成。")
+                            except:
+                                print(
+                                    f'\n文件名称重复，重命名后创建硬链接失败，请检查文件：{new_file_dir_} >> {file_dir_all}\n')
+
     def transcoding(self):
         """运行"""
         # 读取文件
@@ -400,7 +521,7 @@ class Ffm_run:
                             self.bit_rate = cache_bit  # 将码率信息恢复到处理前的状态
                             self.ffmpeg_run_nocopy()
                         except:
-                            print(f"第二次转码尝试失败:{self.path_file}")
+                            print(f"第二次转码尝试失败:{self.path_file}\n{self.f_print}")
                             # 写入状态，转码失败
                             # self.json_data_dict[self.path_file] = 2
                             # self.cache_ff_run_dict[self.path_file] = 2  # 写入本次运行转码结果的状态
@@ -428,7 +549,7 @@ class Ffm_run:
                                     shutil.move(self.out_file,
                                                 self.coding_loss)  # 移动文件
                                 except:
-                                    print(f"移动文件失败：{self.out_file}\n退出转码！")
+                                    print(f"移动文件失败：{self.out_file}\n删除转码文件！\n{self.f_print}")
                                     sys.exit()
 
                             if old // new <= 8:
@@ -440,26 +561,9 @@ class Ffm_run:
                                     self.cache_ff_run_dict[self.path_file] = 6  # 写入本次运行转码结果的状态
                                     self.json_w_data()
                                 else:
-                                    if os.path.exists(self.path_file):  # 判断源文件是否存在
-                                        os.remove(self.path_file)  # 如果存在则删除源文件
-
-                                    cache_dir = os.path.dirname(self.path_file)  # 获得文件路径
-                                    try:
-                                        shutil.move(self.out_file, cache_dir)  # 移动文件
-                                        # 仅用于重命名舞蹈文件夹
-                                        # new_name = self.re_name_file()  # 获取新的文件名
-                                        # os.rename(self.path_file, new_name)
-                                    except shutil.Error as err:
-                                        # 避免多次转码出现长串文件名问题
-                                        cache_shutil_err = re.sub("_转码文件名重复.mp4$", '.mp4', self.out_file,
-                                                                  flags=re.I)
-                                        # 正则添加重复文件的名称
-                                        cache_shutil_err = re.sub("\\.mp4$", '_转码文件名重复.mp4', cache_shutil_err,
-                                                                  flags=re.I)
-                                        shutil.move(cache_shutil_err, cache_dir)  # 移动文件
-                                        print(err)   # 打印错误信息
-
-                                    print(f"转码成功:{self.path_file}")
+                                    # 删除源文件，移动文件并重新链接文件
+                                    self.n_link_flie()
+                                    print(f"转码成功:{self.path_file}\n{self.f_print}")
 
                                     # 写入状态，转码完成
                                     self.json_data_dict[self.path_file] = 1
@@ -593,5 +697,5 @@ if __name__ == "__main__":
     # 以预设参数运行
     # run_ff(1)
 
-    # 传入文件夹参数，写入json数据
-    run_ff(y_dist=test_dir, json_w=True)
+    # 传入文件夹参数，不写入json数据
+    run_ff(y_dist=test_dir, json_w=False)
